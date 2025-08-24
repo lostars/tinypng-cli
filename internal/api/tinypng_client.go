@@ -25,7 +25,7 @@ func GetTinyPNGClient() *TinyPNGClient {
 		return client
 	}
 	client = &TinyPNGClient{
-		Client: &http.Client{Timeout: time.Second * 60},
+		Client: &http.Client{Timeout: time.Second * time.Duration(config.C.Timeout)},
 	}
 	return client
 }

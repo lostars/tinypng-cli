@@ -37,7 +37,8 @@ API key can be set by flag --api-key or env key TINYPNG_API_KEY`,
 
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "cli version")
 	rootCmd.PersistentFlags().BoolVarP(&debugMode, "debug", "d", false, "enable debug")
-	rootCmd.PersistentFlags().StringVarP(&config.APIKey, "api-key", "k", "", "tinypng api key")
+	rootCmd.PersistentFlags().StringVarP(&config.C.APIKey, "api-key", "k", "", "tinypng api key")
+	rootCmd.PersistentFlags().Int64VarP(&config.C.Timeout, "timeout", "", 60, "http client timeout in seconds")
 
 	rootCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if showVersion {

@@ -1,16 +1,20 @@
 package config
 
-import "os"
+import (
+	"os"
+)
 
-var APIKey string
+var C Config
 
 type Config struct {
+	APIKey  string
+	Timeout int64
 }
 
 func GetAPIKey() string {
 	// read from command flag first
-	if APIKey != "" {
-		return APIKey
+	if C.APIKey != "" {
+		return C.APIKey
 	}
 	// read from env
 	key := os.Getenv("TINYPNG_API_KEY")
