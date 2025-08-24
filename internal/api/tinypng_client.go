@@ -49,7 +49,7 @@ func sendCompressPost(body io.Reader) (*CompressResult, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth("api", config.GetAPIKey())
 
-	resp, err := client.Client.Do(req)
+	resp, err := GetTinyPNGClient().Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -102,21 +102,7 @@ func (client *TinyPNGClient) CompressFromUrl(url string) (*CompressResult, error
 }
 
 func Download(url string, newFile string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
-	}
-
-	err = writeFileFromResp(resp, newFile)
-	if err != nil {
-		return err
-	}
-	return nil
+	return sendDownload(http.MethodGet, url, newFile, nil)
 }
 
 func DownloadWithMetadata(url string, newFile string, metadata []string) error {
@@ -124,7 +110,7 @@ func DownloadWithMetadata(url string, newFile string, metadata []string) error {
 		"preserve": metadata,
 	}
 	b, _ := json.Marshal(params)
-	return sendDownloadPost(url, newFile, bytes.NewBuffer(b))
+	return sendDownload(http.MethodPost, url, newFile, bytes.NewBuffer(b))
 }
 
 func DownloadWithConvert(url string, newFile string, convertTo, convertBG string) error {
@@ -145,7 +131,7 @@ func DownloadWithConvert(url string, newFile string, convertTo, convertBG string
 		}
 	}
 	b, _ := json.Marshal(params)
-	return sendDownloadPost(url, newFile, bytes.NewBuffer(b))
+	return sendDownload(http.MethodPost, url, newFile, bytes.NewBuffer(b))
 }
 
 func DownloadWithResize(url, newFile, resizeMethod string, width, height int) error {
@@ -162,11 +148,11 @@ func DownloadWithResize(url, newFile, resizeMethod string, width, height int) er
 		"resize": resize,
 	}
 	b, _ := json.Marshal(params)
-	return sendDownloadPost(url, newFile, bytes.NewBuffer(b))
+	return sendDownload(http.MethodPost, url, newFile, bytes.NewBuffer(b))
 }
 
-func sendDownloadPost(url string, newFile string, body io.Reader) error {
-	req, err := http.NewRequest(http.MethodPost, url, body)
+func sendDownload(method string, url string, newFile string, body io.Reader) error {
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return err
 	}
@@ -174,11 +160,12 @@ func sendDownloadPost(url string, newFile string, body io.Reader) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth("api", config.GetAPIKey())
 
-	resp, err := client.Client.Do(req)
+	resp, err := GetTinyPNGClient().Client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	showCompressingCount(resp)
 	if resp.StatusCode != http.StatusOK {
 		return errors.New(resp.Status)
 	}
@@ -189,6 +176,11 @@ func sendDownloadPost(url string, newFile string, body io.Reader) error {
 	}
 
 	return nil
+}
+
+func showCompressingCount(resp *http.Response) {
+	count := resp.Header.Get("Compression-Count")
+	log.Printf("compressing count: %s\n", count)
 }
 
 func writeFileFromResp(resp *http.Response, newFile string) error {
