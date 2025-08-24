@@ -1,4 +1,4 @@
-BINARY_NAME=qbit
+BINARY_NAME=tinypng
 LDFLAGS=-ldflags "-X main.Version=dev -w -s"
 
 .PHONY: build deps
