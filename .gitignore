@@ -1,0 +1,6 @@
+.idea
+.localized
+.DS_Store
+*.iml
+bin
+dist
