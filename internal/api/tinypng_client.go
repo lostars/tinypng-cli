@@ -7,9 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"tinypng-cli/internal/config"
@@ -21,7 +19,6 @@ type TinyPNGClient struct {
 
 var tinypngAPIHost = "https://api.tinify.com"
 var client *TinyPNGClient
-var compressedSuffix = "-compressed."
 
 func GetTinyPNGClient() *TinyPNGClient {
 	if client != nil {
@@ -93,40 +90,6 @@ func (file CompressedFile) Suffix() string {
 	return strings.Split(file.Type, "/")[1]
 }
 
-func (result *CompressResult) SaveToLocal(savePath string, metadata []string) error {
-	var fullPath string
-	if IsUrl(result.OriginalFile) {
-		path, err := url.Parse(result.OriginalFile)
-		if err != nil {
-			return err
-		}
-		filename := strings.TrimSuffix(filepath.Base(path.Path), filepath.Ext(path.Path)) + compressedSuffix + result.Input.Suffix()
-		fullPath = filepath.Join(savePath, filename)
-
-	} else {
-		if savePath == "" {
-			fullPath = strings.TrimSuffix(result.OriginalFile, filepath.Ext(result.OriginalFile)) + compressedSuffix + result.Input.Suffix()
-		} else {
-			filename := strings.TrimSuffix(filepath.Base(result.OriginalFile), filepath.Ext(result.OriginalFile)) + compressedSuffix + result.Input.Suffix()
-			fullPath = filepath.Join(savePath, filename)
-		}
-	}
-
-	log.Printf("save to new local file %s\n", fullPath)
-	if metadata != nil && len(metadata) > 0 {
-		err := downloadWithMetadata(result.DownloadUrl, fullPath, metadata)
-		if err != nil {
-			return err
-		}
-	} else {
-		err := download(result.DownloadUrl, fullPath)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (client *TinyPNGClient) CompressFromUrl(url string) (*CompressResult, error) {
 	params := map[string]any{
 		"source": map[string]string{
@@ -138,7 +101,7 @@ func (client *TinyPNGClient) CompressFromUrl(url string) (*CompressResult, error
 	return sendCompressPost(bytes.NewBuffer(b))
 }
 
-func download(url string, newFile string) error {
+func Download(url string, newFile string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -156,12 +119,54 @@ func download(url string, newFile string) error {
 	return nil
 }
 
-func downloadWithMetadata(url string, newFile string, metadata []string) error {
+func DownloadWithMetadata(url string, newFile string, metadata []string) error {
 	params := map[string]any{
 		"preserve": metadata,
 	}
 	b, _ := json.Marshal(params)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
+	return sendDownloadPost(url, newFile, bytes.NewBuffer(b))
+}
+
+func DownloadWithConvert(url string, newFile string, convertTo, convertBG string) error {
+	t := ""
+	if convertTo == "*" {
+		t = "*/*"
+	} else {
+		t = "image/" + convertTo
+	}
+	params := map[string]any{
+		"convert": map[string]string{
+			"type": t,
+		},
+	}
+	if convertBG != "" {
+		params["transform"] = map[string]any{
+			"background": convertBG,
+		}
+	}
+	b, _ := json.Marshal(params)
+	return sendDownloadPost(url, newFile, bytes.NewBuffer(b))
+}
+
+func DownloadWithResize(url, newFile, resizeMethod string, width, height int) error {
+	resize := map[string]any{
+		"method": resizeMethod,
+	}
+	if width > 0 {
+		resize["width"] = width
+	}
+	if height > 0 {
+		resize["height"] = height
+	}
+	params := map[string]any{
+		"resize": resize,
+	}
+	b, _ := json.Marshal(params)
+	return sendDownloadPost(url, newFile, bytes.NewBuffer(b))
+}
+
+func sendDownloadPost(url string, newFile string, body io.Reader) error {
+	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"io/fs"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,8 @@ import (
 
 var saveTypes = []string{"local", "aws_s3", "gcs"}
 var metadataTypes = []string{"copyright", "creation", "location"}
+var convertTypes = []string{"avif", "webp", "jpeg", "png", "*"}
+var resizeTypes = []string{"scale", "fit", "cover", "thumb"}
 
 func CompressCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -29,19 +32,34 @@ func CompressCmd() *cobra.Command {
 	}
 
 	var (
-		recursive            bool
-		maxUploadParallelism int
-		extensions           []string
-		// local path
-		output string
+		recursive                 bool
+		maxUploadParallelism      int
+		extensions                []string
+		output                    string
+		resizeHeight, resizeWidth int
+		convertBG                 string
 	)
 
 	saveTo := FlagsProperty[string]{Flag: "save-to", Options: saveTypes}
 	cmd.Flags().StringVar(&saveTo.Value, saveTo.Flag, "local", `save to: `+strings.Join(saveTypes, ","))
 
+	// metadata config
 	metadata := FlagsProperty[string]{Flag: "metadata", Options: metadataTypes}
 	cmd.Flags().StringSliceVar(&metadata.Values, metadata.Flag, []string{}, `you can request the following metadata to the compressed file: 
 `+strings.Join(metadataTypes, ",")+". location is JPEG only")
+
+	// transform config
+	convertTo := FlagsProperty[string]{Flag: "convert-to", Options: convertTypes}
+	cmd.Flags().StringVar(&convertTo.Value, convertTo.Flag, "", `convert to specific type: 
+`+strings.Join(convertTypes, ",")+". convert is only support between above types.")
+	cmd.Flags().StringVar(&convertBG, "convert-bg", "", "transform background color hex value or white or black")
+
+	// resize config
+	resize := FlagsProperty[string]{Flag: "resize-method", Options: resizeTypes}
+	cmd.Flags().StringVar(&resize.Value, resize.Flag, "", `resize method:`+strings.Join(resizeTypes, ",")+`
+you can get more information about resize from official docs before start: https://tinypng.com/developers/reference#resizing-images`)
+	cmd.Flags().IntVar(&resizeWidth, "resize-width", 0, "resize width")
+	cmd.Flags().IntVar(&resizeHeight, "resize-height", 0, "resize height")
 
 	cmd.Flags().StringVar(&output, "output", "", `compressed file output path.compressed file will be created beside by original file if output path is not set.`)
 
@@ -52,9 +70,21 @@ be aware of your upload bandwidth.`)
 
 	// register flag completion
 	saveTo.RegisterCompletion(cmd)
+	metadata.RegisterCompletion(cmd)
+	resize.RegisterCompletion(cmd)
+	convertTo.RegisterCompletion(cmd)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		path := args[0]
+
+		saveConfig := saveConfig{
+			metadata:     metadata.Values,
+			convertTo:    convertTo.Value,
+			convertBG:    convertBG,
+			resizeMethod: resize.Value,
+			resizeWidth:  resizeWidth,
+			resizeHeight: resizeHeight,
+		}
 
 		client := api.GetTinyPNGClient()
 		if api.IsUrl(path) {
@@ -63,7 +93,7 @@ be aware of your upload bandwidth.`)
 				return err
 			}
 			r.OriginalFile = path
-			err = r.SaveToLocal(output, metadata.Values)
+			err = saveConfig.saveToLocal(output, r)
 			if err != nil {
 				return err
 			}
@@ -92,7 +122,7 @@ be aware of your upload bandwidth.`)
 								fmt.Println(err)
 							}
 							r.OriginalFile = file
-							err = r.SaveToLocal(output, metadata.Values)
+							err = saveConfig.saveToLocal(output, r)
 							if err != nil {
 								fmt.Println(err)
 							}
@@ -110,7 +140,7 @@ be aware of your upload bandwidth.`)
 					return err
 				}
 				r.OriginalFile = path
-				err = r.SaveToLocal(output, metadata.Values)
+				err = saveConfig.saveToLocal(output, r)
 				if err != nil {
 					return err
 				}
@@ -121,6 +151,72 @@ be aware of your upload bandwidth.`)
 	}
 
 	return cmd
+}
+
+type saveConfig struct {
+	metadata                  []string
+	convertTo, convertBG      string
+	resizeWidth, resizeHeight int
+	resizeMethod              string
+}
+
+var compressedSuffix = "-compressed."
+
+func (c *saveConfig) saveToLocal(savePath string, result *api.CompressResult) error {
+	var fullPath string
+	if api.IsUrl(result.OriginalFile) {
+		path, err := url.Parse(result.OriginalFile)
+		if err != nil {
+			return err
+		}
+		filename := strings.TrimSuffix(filepath.Base(path.Path), filepath.Ext(path.Path)) + compressedSuffix + result.Input.Suffix()
+		fullPath = filepath.Join(savePath, filename)
+
+	} else {
+		if savePath == "" {
+			fullPath = strings.TrimSuffix(result.OriginalFile, filepath.Ext(result.OriginalFile)) + compressedSuffix + result.Input.Suffix()
+		} else {
+			filename := strings.TrimSuffix(filepath.Base(result.OriginalFile), filepath.Ext(result.OriginalFile)) + compressedSuffix + result.Input.Suffix()
+			fullPath = filepath.Join(savePath, filename)
+		}
+	}
+
+	log.Printf("save to new local file %s\n", fullPath)
+
+	normalDownload := true
+
+	if c.metadata != nil && len(c.metadata) > 0 {
+		err := api.DownloadWithMetadata(result.DownloadUrl, fullPath, c.metadata)
+		if err != nil {
+			return err
+		}
+		normalDownload = false
+	}
+
+	if c.convertTo != "" {
+		err := api.DownloadWithConvert(result.DownloadUrl, fullPath, c.convertTo, c.convertBG)
+		if err != nil {
+			return err
+		}
+		normalDownload = false
+	}
+
+	if c.resizeMethod != "" {
+		err := api.DownloadWithResize(result.DownloadUrl, fullPath, c.resizeMethod, c.resizeWidth, c.resizeHeight)
+		if err != nil {
+			return err
+		}
+		normalDownload = false
+	}
+
+	if normalDownload {
+		err := api.Download(result.DownloadUrl, fullPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func listFiles(path string, recursive bool, extensions []string) (chan string, error) {
