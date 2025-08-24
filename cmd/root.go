@@ -20,7 +20,8 @@ func Execute(version string) {
 		Short: "A tiny CLI for tinypng",
 		Long: `This tool is developed with TinyPNG's web api. 
 You can find official documentation here: https://tinypng.com/developers/reference.
-This tool requires a API key from TinyPNG, you can get it here: https://tinify.com/developers.`,
+This tool requires a API key from TinyPNG, you can get it here: https://tinify.com/developers.
+API key can be set by flag --api-key or env key TINYPNG_API_KEY`,
 
 		SilenceUsage: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -44,6 +45,8 @@ This tool requires a API key from TinyPNG, you can get it here: https://tinify.c
 		}
 		return nil
 	}
+
+	rootCmd.AddCommand(CompressCmd())
 
 	defer func() {
 		if r := recover(); r != nil {
