@@ -48,6 +48,7 @@ API key can be set by flag --api-key or env key TINYPNG_API_KEY`,
 	}
 
 	rootCmd.AddCommand(CompressCmd())
+	rootCmd.AddCommand(CompressWebCmd())
 
 	defer func() {
 		if r := recover(); r != nil {

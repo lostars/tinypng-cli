@@ -41,11 +41,7 @@ func (client *TinyPNGClient) CompressFromFile(path string) (*CompressResult, err
 }
 
 func sendCompressPost(body io.Reader) (*CompressResult, error) {
-	req, err := http.NewRequest(http.MethodPost, tinypngAPIHost+"/shrink", body)
-	if err != nil {
-		return nil, err
-	}
-
+	req, _ := http.NewRequest(http.MethodPost, tinypngAPIHost+"/shrink", body)
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth("api", config.GetAPIKey())
 
@@ -83,11 +79,11 @@ type CompressedFile struct {
 	Type string `json:"type"`
 }
 
-func (file CompressedFile) Suffix() string {
-	if file.Type == "image/jpeg" {
+func SuffixFromMIME(mime string) string {
+	if mime == "image/jpeg" {
 		return "jpg"
 	}
-	return strings.Split(file.Type, "/")[1]
+	return strings.Split(mime, "/")[1]
 }
 
 func (client *TinyPNGClient) CompressFromUrl(url string) (*CompressResult, error) {
@@ -152,11 +148,7 @@ func DownloadWithResize(url, newFile, resizeMethod string, width, height int) er
 }
 
 func sendDownload(method string, url string, newFile string, body io.Reader) error {
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return err
-	}
-
+	req, _ := http.NewRequest(method, url, body)
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth("api", config.GetAPIKey())
 
@@ -170,7 +162,7 @@ func sendDownload(method string, url string, newFile string, body io.Reader) err
 		return errors.New(resp.Status)
 	}
 
-	err = writeFileFromResp(resp, newFile)
+	err = WriteFileFromResp(resp, newFile)
 	if err != nil {
 		return err
 	}
@@ -183,7 +175,7 @@ func showCompressingCount(resp *http.Response) {
 	log.Printf("compressing count: %s\n", count)
 }
 
-func writeFileFromResp(resp *http.Response, newFile string) error {
+func WriteFileFromResp(resp *http.Response, newFile string) error {
 	out, err := os.Create(newFile)
 	if err != nil {
 		return err

@@ -61,7 +61,7 @@ you can get more information about resize from official docs before start: https
 	cmd.Flags().IntVar(&resizeWidth, "resize-width", 0, "resize width")
 	cmd.Flags().IntVar(&resizeHeight, "resize-height", 0, "resize height")
 
-	cmd.Flags().StringVar(&output, "output", "", `compressed file output path.compressed file will be created beside by original file if output path is not set.`)
+	cmd.Flags().StringVar(&output, "output", "", `compressed file output path. compressed file will be created beside by original file if output path is not set.`)
 
 	cmd.Flags().IntVar(&maxUploadParallelism, "max-upload", 4, `max upload parallelism, valid only directory upload.
 be aware of your upload bandwidth.`)
@@ -169,14 +169,14 @@ func (c *saveConfig) saveToLocal(savePath string, result *api.CompressResult) er
 		if err != nil {
 			return err
 		}
-		filename := strings.TrimSuffix(filepath.Base(path.Path), filepath.Ext(path.Path)) + compressedSuffix + result.Input.Suffix()
+		filename := strings.TrimSuffix(filepath.Base(path.Path), filepath.Ext(path.Path)) + compressedSuffix + api.SuffixFromMIME(result.Input.Type)
 		fullPath = filepath.Join(savePath, filename)
 
 	} else {
 		if savePath == "" {
-			fullPath = strings.TrimSuffix(result.OriginalFile, filepath.Ext(result.OriginalFile)) + compressedSuffix + result.Input.Suffix()
+			fullPath = strings.TrimSuffix(result.OriginalFile, filepath.Ext(result.OriginalFile)) + compressedSuffix + api.SuffixFromMIME(result.Input.Type)
 		} else {
-			filename := strings.TrimSuffix(filepath.Base(result.OriginalFile), filepath.Ext(result.OriginalFile)) + compressedSuffix + result.Input.Suffix()
+			filename := strings.TrimSuffix(filepath.Base(result.OriginalFile), filepath.Ext(result.OriginalFile)) + compressedSuffix + api.SuffixFromMIME(result.Input.Type)
 			fullPath = filepath.Join(savePath, filename)
 		}
 	}
