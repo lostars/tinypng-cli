@@ -1,4 +1,4 @@
-# A TinyPNG CLI Developed by Go
+# A TinyPNG CLI developed by Go
 
 This CLI using TinyPNG official API, you can get the API key [here](https://tinify.com/developers) before you start.
 
@@ -26,6 +26,8 @@ make build
 ## Usage
 
 You can get details by flag `-h` or `--help`
+
+Support `http_proxy` and `https_proxy` environments.
 
 ### compress
 
